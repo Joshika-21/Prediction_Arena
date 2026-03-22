@@ -1,8 +1,15 @@
 
-Dependences:
+## Instructions to test the API and Azure Cosmos Database
+- Please ask the backend dev 1 for all the keys.
+
+### Dependences:
+- node (if you don't already have, look it up)
+
+Type in the Terminal
 - npm install express
-- node (probably)
 - Go to VSCode Extension and install Thunder Client
+- npm install @azure/cosmos dotenv
+- npm install @azure/service-bus
 
 To run prediction service:
 - Go to services/prediction by typing
@@ -24,8 +31,3 @@ To run prediction service:
 - Click Send
 
 Thunder Client simply acts as a frontend service for now, but will be replaced by React frontend.
-Using it to make sure the API works and is able to read and take new data.
-
-Next Steps:
-- Connect API to Cosmos Database
-- Be careful of any costs occurring
