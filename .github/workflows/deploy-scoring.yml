@@ -1,0 +1,116 @@
+# deploy-scoring.yml — CI/CD pipeline for the scoring Azure Function
+#
+# WHY THIS FILE EXISTS:
+#   The existing deploy.yml only handles the prediction service. This file
+#   does the same thing for the scoring service — whenever code in
+#   services/scoring/ is pushed to main, it automatically builds a new
+#   Docker image, pushes it to Azure Container Registry, and deploys it
+#   to Azure Container Apps.
+#
+# HOW IT WORKS:
+#   1. A push to main that touches any file in services/scoring/ triggers this
+#   2. GitHub Actions checks out the code on a fresh Ubuntu runner
+#   3. Logs into Azure Container Registry using a stored secret
+#   4. Builds the Docker image from services/scoring/Dockerfile
+#   5. Pushes the image to the registry tagged as "latest"
+#   6. Logs into Azure using stored credentials
+#   7. Updates the running Container App to use the new image
+#
+# SECRETS REQUIRED (set these in GitHub → Settings → Secrets and variables → Actions):
+#   ACR_PASSWORD      — same secret already used by deploy.yml (no new secret needed)
+#   AZURE_CREDENTIALS — same secret already used by deploy.yml (no new secret needed)
+#
+# NOTE: This file deliberately mirrors the structure of deploy.yml so the
+# project stays consistent and any teammate can understand both files easily.
+
+name: Deploy Scoring Service
+
+# ── Trigger ───────────────────────────────────────────────────────────────────
+# WHY paths filter:
+#   Without this, every push to main — even a README change — would trigger
+#   a full rebuild and redeploy of the scoring service. The paths filter means
+#   this pipeline ONLY runs when scoring service files actually changed.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/scoring/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Step 1: Check out the repository ──────────────────────────────────
+      # WHY: The runner starts as a blank Ubuntu machine. This step downloads
+      # the repo code onto it so subsequent steps can access the files.
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # ── Step 2: Log into Azure Container Registry ─────────────────────────
+      # WHY: Docker needs to authenticate before it can push an image to the
+      # private registry. We use the same ACR and same secret (ACR_PASSWORD)
+      # as the prediction service — no new credentials needed.
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: predictionarenaregistry.azurecr.io
+          username: predictionarenaregistry
+          # ACR_PASSWORD is stored in GitHub Secrets — never hardcoded here.
+          # Same secret used by deploy.yml so nothing new to set up.
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # ── Step 3: Build and push the Docker image ───────────────────────────
+      # WHY context is ./services/scoring:
+      #   Docker builds relative to the context folder. Setting it to
+      #   services/scoring means the Dockerfile in that folder is used and
+      #   COPY commands inside it work relative to that folder.
+      #
+      # WHY platforms: linux/amd64:
+      #   Azure Container Apps runs on Linux x86-64. If you build on a Mac
+      #   (Apple Silicon), Docker would default to arm64 which won't run on
+      #   Azure. This forces the correct architecture every time.
+      #
+      # WHY tag as "scoring-service:latest":
+      #   Uses a different image name than prediction-service:latest so the
+      #   two services have separate images in the registry and don't
+      #   overwrite each other.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/scoring
+          platforms: linux/amd64
+          push: true
+          tags: predictionarenaregistry.azurecr.io/scoring-service:latest
+
+      # ── Step 4: Log into Azure ────────────────────────────────────────────
+      # WHY: The Azure CLI (used in the next step) needs to be authenticated
+      # to talk to your Azure subscription. AZURE_CREDENTIALS is a JSON
+      # service principal — the same one already used by deploy.yml.
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ── Step 5: Deploy to Azure Container Apps ────────────────────────────
+      # WHY az containerapp update (not create):
+      #   'update' assumes the Container App already exists in Azure and just
+      #   swaps in the new image. Your Cloud/DevOps teammate needs to have
+      #   created the 'scoring-service' Container App first.
+      #   If it doesn't exist yet, they need to run 'az containerapp create'
+      #   once manually before this pipeline will work.
+      #
+      # WHY --name scoring-service:
+      #   This must match the exact name of the Container App in Azure Portal.
+      #   Matches the naming pattern of prediction-service.
+      #
+      # WHY --resource-group prediction-arena-rg:
+      #   Same resource group as the prediction service — keeps all project
+      #   resources together. Must match exactly what exists in Azure Portal.
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update \
+            --name scoring-service \
+            --resource-group prediction-arena-rg \
+            --image predictionarenaregistry.azurecr.io/scoring-service:latest

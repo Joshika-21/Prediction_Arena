@@ -1,0 +1,41 @@
+# requirements.txt — Python dependencies for the scoring Azure Function
+#
+# WHY THIS FILE EXISTS:
+#   Python needs to know which third-party libraries to install before
+#   running function_app.py. This file lists them with exact version numbers.
+#   Azure uses this file when building the Docker container. Your teammates
+#   use it to install the same versions locally so everyone's environment
+#   matches.
+#
+# HOW TO INSTALL LOCALLY:
+#   pip install -r requirements.txt
+#
+# WHY EXACT VERSIONS (e.g. ==4.15.0 not just azure-cosmos):
+#   Pinning versions prevents a future library update from silently breaking
+#   your code. These versions match the prediction service's requirements.txt
+#   so the whole project uses consistent Azure SDK versions.
+#
+# ── Azure Functions runtime ───────────────────────────────────────────────────
+# WHY: The azure-functions package is what gives us func.FunctionApp(),
+# func.HttpRequest, func.HttpResponse — everything in function_app.py that
+# starts with "func.". Without this, the file won't even import.
+azure-functions==1.21.3
+
+# ── Azure Cosmos DB ───────────────────────────────────────────────────────────
+# WHY: The CosmosClient we use in function_app.py to read predictions and
+# write scores comes from this package.
+# Version matches prediction service to keep the project consistent.
+azure-cosmos==4.15.0
+
+# ── Azure Service Bus ─────────────────────────────────────────────────────────
+# WHY: ServiceBusClient and ServiceBusMessage in function_app.py come from
+# this package. Used to send the "scores updated" notification to the
+# leaderboard service (Dev 3) after scoring is complete.
+# Version matches prediction service to keep the project consistent.
+azure-servicebus==7.14.3
+
+# ── Azure Core ────────────────────────────────────────────────────────────────
+# WHY: Both azure-cosmos and azure-servicebus depend on azure-core internally
+# for things like HTTP transport and authentication. Pinning it explicitly
+# prevents the two packages from pulling in conflicting versions of it.
+azure-core==1.38.3
