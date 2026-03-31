@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.SignalR;
 using System.Linq;
 
@@ -17,6 +18,20 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 
+builder.Services.AddSingleton(sp =>
+{
+    var connectionString = builder.Configuration["ServiceBus:ConnectionString"];
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("ServiceBus:ConnectionString is missing.");
+    }
+
+    return new ServiceBusClient(connectionString);
+});
+
+builder.Services.AddSingleton<LeaderboardQueueListener>();
+builder.Services.AddHostedService(sp=>sp.GetRequiredService<LeaderboardQueueListener>());
+
 var app = builder.Build();
 
 app.UseCors();
@@ -27,24 +42,10 @@ app.MapGet("/", () => "Leaderboard Service Running");
 // Leaderboard test endpoint
 app.MapGet("/leaderboard", () =>
 {
-    var users = new List<(string name, double score)>
-    {
-        ("Alice", 0.12),
-        ("Bob", 0.05),
-        ("Charlie", 0.20)
-    };
-
-    var ranked = users
-        .OrderByDescending(u => u.score)
-        .Select((u, index) => new
-        {
-            Rank = index + 1,
-            Name = u.name,
-            Score = u.score
-        });
-
+    var ranked = LeaderboardData.GetRankedLeaderboard();
     return ranked;
 });
+    
 
 app.MapHub<LeaderboardHub>("/leaderboardHub");
 
@@ -54,38 +55,88 @@ class LeaderboardHub : Hub
 {
     public async Task GetLeaderboard()
     {
-        // Mock data for testing
-        var users = new List<(string name, double score)>
-        {
-            ("Alice", 0.12),
-            ("Bob", 0.05),
-            ("Charlie", 0.20)
-        };
-
-        var ranked = users
-            .OrderByDescending(u => u.score)
-            .Select((u, index) => new
-            {
-                Rank = index + 1,
-                Name = u.name,
-                Score = u.score
-            });
-
+        var ranked = LeaderboardData.GetRankedLeaderboard();
         await Clients.All.SendAsync("ReceiveLeaderboard", ranked);
     }
 }
 
-/*
-Server running check:
-http://localhost:5062/
+class LeaderboardQueueListener : IHostedService, IAsyncDisposable
+{
+    private readonly ServiceBusProcessor _processor;
+    private readonly IHubContext<LeaderboardHub> _hubContext;
 
-Leaderboard test endpoint:
-http://localhost:5062/leaderboard
+    public LeaderboardQueueListener(
+        ServiceBusClient client,
+        IConfiguration configuration,
+        IHubContext<LeaderboardHub> hubContext)
+    {
+        var queueName = configuration["ServiceBus:QueueName"] ?? "scores-updated";
 
-Expected output:
-[
-  { "rank": 1, "name": "Charlie", "score": 0.2 },
-  { "rank": 2, "name": "Alice", "score": 0.12 },
-  { "rank": 3, "name": "Bob", "score": 0.05 }
-]
-*/
+        _processor = client.CreateProcessor(queueName, new ServiceBusProcessorOptions());
+        _hubContext = hubContext;
+
+        _processor.ProcessMessageAsync += HandleMessageAsync;
+        _processor.ProcessErrorAsync += HandleErrorAsync;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _processor.StartProcessingAsync(cancellationToken);
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _processor.StopProcessingAsync(cancellationToken);
+    }
+
+    private async Task HandleMessageAsync(ProcessMessageEventArgs args)
+    {
+        // Push mock leaderboard
+        var ranked = LeaderboardData.GetRankedLeaderboard();
+
+        await _hubContext.Clients.All.SendAsync("ReceiveLeaderboard", ranked);
+
+        await args.CompleteMessageAsync(args.Message);
+    }
+
+    private Task HandleErrorAsync(ProcessErrorEventArgs args)
+    {
+        Console.WriteLine($"Service Bus error: {args.Exception.Message}");
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _processor.DisposeAsync();
+    }
+}
+
+static class LeaderboardData
+{
+    public static List<LeaderboardItem> GetRankedLeaderboard()
+    {
+        var users = GetCurrentScores();
+
+        return users
+            .OrderByDescending(u => u.Score)
+            .Select((u, index) => new LeaderboardItem(
+                Rank: index + 1,
+                Name: u.Name,
+                Score: u.Score))
+            .ToList();
+    }
+
+    // test/mock data
+    private static List<UserScore> GetCurrentScores()
+    {
+        return new List<UserScore>
+        {
+            new UserScore("Alice", 0.12),
+            new UserScore("Bob", 0.05),
+            new UserScore("Charlie", 0.20)
+        };
+    }
+}
+
+record UserScore(string Name, double Score);
+record LeaderboardItem(int Rank, string Name, double Score);
