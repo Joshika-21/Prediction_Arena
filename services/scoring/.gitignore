@@ -1,0 +1,41 @@
+# .gitignore — Tells Git which files in services/scoring/ to never commit
+#
+# WHY THIS FILE EXISTS:
+#   Some files must never go to GitHub — either because they contain secrets,
+#   or because they are auto-generated junk that every developer creates
+#   locally and which don't belong in the shared repo.
+
+# ── SECRETS — most important ──────────────────────────────────────────────────
+# local.settings.json contains your Cosmos DB and Service Bus connection strings.
+# If this file goes to GitHub (even a private repo), those keys are compromised.
+# Anyone with the key can read your database or rack up Azure charges.
+local.settings.json
+
+# ── Python cache files ────────────────────────────────────────────────────────
+# Python creates these automatically when it imports a module.
+# They are machine-specific and regenerated automatically — no need to commit.
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+# When you run "python -m venv .venv", Python creates a local copy of the
+# interpreter and all installed packages here. This folder is large (100MB+)
+# and machine-specific — teammates install their own via requirements.txt.
+.venv/
+venv/
+env/
+
+# ── Azure Functions local packages ───────────────────────────────────────────
+# "func extensions install" downloads binding extensions here locally.
+# Not needed in the repo — the Dockerfile handles this in the container.
+.python_packages/
+
+# ── Environment files ─────────────────────────────────────────────────────────
+# Any .env file might contain secrets — ignore all of them as a safety net.
+.env
+*.env
+
+# ── Azure Functions local storage emulator ────────────────────────────────────
+# If you run Azurite locally (the storage emulator), it creates files here.
+.azurite/
