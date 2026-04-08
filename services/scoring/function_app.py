@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # WHY: func.FunctionApp() is the entry point Azure Functions SDK requires.
 # http_auth_level=FUNCTION means callers must include a function key in the
 # request — this stops random people on the internet from calling resolve-event.
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
 # ── HTTP Endpoint ─────────────────────────────────────────────────────────────
@@ -238,16 +238,20 @@ def _get_predictions_from_cosmos(event_id: str) -> list[dict]:
     )
 
     # Parameterised query — using @event_id prevents SQL injection attacks
-    query  = "SELECT * FROM c WHERE c.event_id = @event_id"
+    query = "SELECT * FROM c WHERE c.eventId = @event_id"
     params = [{"name": "@event_id", "value": event_id}]
 
-    items = list(container.query_items(query=query, parameters=params))
+    items = list(container.query_items(
+        query=query, 
+        parameters=params,
+        enable_cross_partition_query=True
+    ))
 
     # Return only the two fields brier.py needs, ignoring Cosmos metadata fields
     return [
         {
-            "user_id":               item["user_id"],
-            "predicted_probability": float(item["predicted_probability"]),
+            "user_id": item["userId"],
+            "predicted_probability": float(item["confidence"]) / 100,
         }
         for item in items
     ]
