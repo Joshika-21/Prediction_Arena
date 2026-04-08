@@ -305,7 +305,7 @@ export default function App() {
               borderRadius: "8px",
               border: `1px solid ${colors.border}`
             }}>
-              No predictions yet
+              No predictions yet. Make your first prediction above!
             </p>
           ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
