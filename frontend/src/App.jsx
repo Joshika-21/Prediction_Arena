@@ -186,7 +186,7 @@ export default function App() {
             margin: "0 0 20px 0",
             fontWeight: "bold"
           }}>
-            📉 MAKE A PREDICTION
+            📉 MAKE YOUR PREDICTION
           </h2>
 
           {error && (
@@ -239,7 +239,7 @@ export default function App() {
             fontSize: "12px",
             fontWeight: "bold"
           }}>
-            Probability (0-1)
+            Probability (0 - 1)
           </label>
 
           <input
