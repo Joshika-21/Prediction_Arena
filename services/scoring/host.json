@@ -1,0 +1,32 @@
+{
+  "__comment_why_this_file": [
+    "host.json is REQUIRED by Azure Functions — the runtime refuses to start without it.",
+    "It configures behaviour that applies to ALL functions in this app (we only have one).",
+    "This is NOT where you put secrets or connection strings — that is local.settings.json."
+  ],
+
+  "version": "2.0",
+
+  "__comment_version": [
+    "version 2.0 means we are using the Azure Functions v2 programming model,",
+    "which is what our function_app.py is written for (the @app.route decorator style).",
+    "Never change this to 1.0 — the code would break."
+  ],
+
+  "logging": {
+    "__comment_logging": [
+      "Controls how logs are sent to Azure Application Insights when deployed.",
+      "Locally, logs just print to your terminal regardless of this setting."
+    ],
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "__comment_sampling": [
+          "Sampling means Azure won't log EVERY single request — only a percentage.",
+          "This keeps Application Insights costs low for high-traffic functions.",
+          "For a class project this barely matters, but it's the correct default."
+        ]
+      }
+    }
+  }
+}

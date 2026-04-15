@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SignalR Leaderboard Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+</head>
+<body>
+    <h1>Leaderboard Test</h1>
+    <button onclick="getLeaderboard()">Load Leaderboard</button>
+    <ul id="leaderboard"></ul>
+
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5062/leaderboardHub")
+            .build();
+
+        connection.on("ReceiveLeaderboard", function (data) {
+            const list = document.getElementById("leaderboard");
+            list.innerHTML = "";
+
+            data.forEach(item => {
+                const li = document.createElement("li");
+                li.textContent = `${item.rank}. ${item.name} - ${item.score}`;
+                list.appendChild(li);
+            });
+        });
+
+        connection.start()
+            .then(() => {
+                console.log("Connected to SignalR");
+                return connection.invoke("GetLeaderboard");
+            })
+            .catch(err => console.error(err));
+
+        function getLeaderboard() {
+            connection.invoke("GetLeaderboard")
+                .catch(err => console.error(err));
+        }
+    </script>
+</body>
+</html>
