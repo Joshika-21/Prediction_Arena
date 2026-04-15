@@ -320,7 +320,7 @@ function Markets({ user, onLogout }) {
 
   const handlePredict=async(userId,eventId,prob)=>{
     const ev=allEvents.find(e=>e.id===eventId);
-    return api.makePrediction(userId,eventId,prob,ev?.title,ev?.category,ev?.deadline);
+    return api.makePrediction(userId, eventId, prob, ev?.title, ev?.category, ev?.deadline, "yes");
   };
 
   const filtered=allEvents.filter(e=>{

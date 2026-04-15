@@ -97,8 +97,16 @@ export default function MyPredictions({ user }) {
                 </div>
 
                 <div style={{ textAlign:"center", minWidth:"80px" }}>
-                  <div style={{ color:"#10b981", fontSize:"20px", fontWeight:700 }}>{p.confidence}%</div>
-                  <div style={{ color:"#6b7280", fontSize:"11px" }}>YES confidence</div>
+                  {(() => {
+                    const isYes = p.confidence >= 50;
+                    const displayConf = isYes ? Math.round(p.confidence) : Math.round(100 - p.confidence);
+                    return (
+                      <>
+                        <div style={{ color: isYes ? "#10b981" : "#ef4444", fontSize:"20px", fontWeight:700 }}>{displayConf}%</div>
+                        <div style={{ color:"#6b7280", fontSize:"11px" }}>{isYes ? "YES" : "NO"} prediction</div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {p.status === "resolved" && p.brierScore !== null && (

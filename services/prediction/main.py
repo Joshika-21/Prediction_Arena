@@ -49,6 +49,11 @@ users_container = cosmos_client.get_database_client(
     os.getenv("COSMOS_DATABASE")
 ).get_container_client("users")
 
+# Scores container
+scores_container = cosmos_client.get_database_client(
+    os.getenv("COSMOS_DATABASE")
+).get_container_client("scores")
+
 # ── Models ─────────────────────────────────────────────────
 
 class PredictionInput(BaseModel):
@@ -70,6 +75,10 @@ class PredictionDocument(BaseModel):
     createdAt: str
     status: str
     brierScore: Optional[float] = None
+
+class ResolveEventInput(BaseModel):
+    event_id: str
+    actual_outcome: int  # 0 (NO) or 1 (YES)
 
 class EventInput(BaseModel):
     title: str
@@ -166,6 +175,69 @@ async def get_leaderboard():
 
         return {"leaderboard": leaderboard}
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Resolve Event ──────────────────────────────────────────
+
+@app.post("/resolve-event")
+async def resolve_event(data: ResolveEventInput):
+    try:
+        if data.actual_outcome not in [0, 1]:
+            raise HTTPException(status_code=400, detail="actual_outcome must be 0 (NO) or 1 (YES)")
+
+        # Fetch all pending predictions for this event
+        predictions = list(container.query_items(
+            query="SELECT * FROM c WHERE c.eventId = @event_id AND c.status = 'pending'",
+            parameters=[{"name": "@event_id", "value": data.event_id}],
+            enable_cross_partition_query=True
+        ))
+
+        scored_users = set()
+        for prediction in predictions:
+            confidence = prediction.get("confidence", 50)
+            brier = round((confidence / 100 - data.actual_outcome) ** 2, 4)
+
+            # Upsert score document
+            scores_container.upsert_item({
+                "id": f"score_{prediction['id']}",
+                "event_id": data.event_id,
+                "user_id": prediction.get("userId"),
+                "prediction_id": prediction["id"],
+                "confidence": confidence,
+                "actual_outcome": data.actual_outcome,
+                "brier_score": brier,
+            })
+
+            # Mark prediction resolved
+            prediction["status"] = "resolved"
+            prediction["brierScore"] = brier
+            container.replace_item(item=prediction["id"], body=prediction)
+            scored_users.add(prediction.get("userId"))
+
+        # Mark event resolved
+        events = list(events_container.query_items(
+            query="SELECT * FROM c WHERE c.id = @event_id",
+            parameters=[{"name": "@event_id", "value": data.event_id}],
+            enable_cross_partition_query=True
+        ))
+        if events:
+            event_doc = events[0]
+            event_doc["status"] = "resolved"
+            event_doc["actual_outcome"] = data.actual_outcome
+            events_container.replace_item(item=event_doc["id"], body=event_doc)
+
+        return {
+            "status": "success",
+            "event_id": data.event_id,
+            "actual_outcome": data.actual_outcome,
+            "scored_users": len(scored_users),
+            "scored_predictions": len(predictions)
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
