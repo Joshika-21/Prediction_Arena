@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import PredictionForm from '../components/PredictionForm'
 
-const API_BASE = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io"
+const API_BASE = import.meta.env.VITE_API_BASE
 
 function Events() {
   const [events, setEvents] = useState([])
@@ -19,7 +19,7 @@ function Events() {
       const data = await response.json()
       setEvents(data)
       setError(null)
-    } catch (err) {
+    } catch {
       setError("Failed to load events. Please try again.")
     } finally {
       setLoading(false)

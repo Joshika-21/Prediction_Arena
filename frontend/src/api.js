@@ -1,7 +1,8 @@
-const API_BASE = 'https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io';
-const ODDS_API_KEY = '93b67ff6d302c9a4d1e012f5d77df18e';
-const COINGECKO_KEY = 'CG-xsxMufs9nNheDMbXJ3vF3s8t';
-const FRED_API_KEY = '810bf54b601a3f43496cfe1898100650';
+const API_BASE = import.meta.env.VITE_API_BASE;
+const LEADERBOARD_API = import.meta.env.VITE_LEADERBOARD_API;
+const ODDS_API_KEY = import.meta.env.VITE_ODDS_API_KEY;
+const COINGECKO_KEY = import.meta.env.VITE_COINGECKO_KEY;
+const FRED_API_KEY = import.meta.env.VITE_FRED_API_KEY;
 
 const cache = {};
 const CACHE_TTL = 60000;
@@ -110,7 +111,7 @@ async function fetchSportsOdds(sport='basketball_nba') {
         const homeProb = Math.round((1/homeOdds)/((1/homeOdds)+(1/awayOdds))*100);
         return { id:`odds_${game.id}`, title:`Will ${game.home_team} beat ${game.away_team}?`, category:'Sports', deadline:game.commence_time, baseProb:homeProb, yesPercent:homeProb, currentProb:homeProb, isLive:true, source:'The Odds API' };
       });
-    } catch(e) { return []; }
+    } catch { return []; }
   });
 }
 
@@ -129,7 +130,7 @@ async function fetchPolymarketEvents() {
         currentProb: Math.round(parseFloat(m.outcomePrices?.[0]||'0.5')*100),
         isLive:true, source:'Polymarket'
       }));
-    } catch(e) { return []; }
+    } catch { return []; }
   });
 }
 
@@ -282,7 +283,7 @@ export const api = {
 
   getLeaderboard: async () => {
     try {
-      const response = await fetch('https://leaderboard-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io/leaderboard');
+      const response = await fetch(`${LEADERBOARD_API}/leaderboard`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       return (data.leaderboard||[]).map(p => ({ playerName:p.userId, score:p.avgBrierScore }));

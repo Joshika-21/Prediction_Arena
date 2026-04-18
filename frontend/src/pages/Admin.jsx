@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io";
-const ADMIN_PASSWORD = "arena2026";
+const API_BASE = import.meta.env.VITE_API_BASE;
 const CATEGORY_ICONS = { Elections:"🗳️", Politics:"🏛️", Sports:"⚽", Culture:"🎭", Crypto:"₿", Climate:"🌍", Economics:"📈", Companies:"🏢", Financials:"💹", "Tech & Science":"🔬" };
 const CATEGORIES = ["Crypto","Economics","Sports","Elections","Politics","Tech & Science","Climate","Financials","Companies","Culture"];
 
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
   const [password, setPassword] = useState("");
   const [pwError, setPwError] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState({});
@@ -27,13 +28,39 @@ export default function Admin() {
     if (authed) fetchEvents();
   }, [authed]);
 
+  const handleAdminLogin = async () => {
+    if (!password.trim()) { setPwError("Please enter a password"); return; }
+    setPwLoading(true);
+    setPwError("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Authentication failed");
+      setAdminToken(data.token);
+      setAuthed(true);
+    } catch (err) {
+      setPwError(err.message || "Wrong password");
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const adminHeaders = () => ({
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${adminToken}`
+  });
+
   const fetchEvents = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/events`);
       const data = await res.json();
       setEvents(data.events || []);
-    } catch (e) { console.error(e); }
+    } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
@@ -41,19 +68,23 @@ export default function Admin() {
     setResolving(prev => ({ ...prev, [eventId]: true }));
     try {
       const res = await fetch(
-        `https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io/resolve-event`,
+        `${API_BASE}/resolve-event`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: adminHeaders(),
           body: JSON.stringify({ event_id: eventId, actual_outcome: outcome })
         }
       );
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to resolve");
+      }
       const data = await res.json();
-      setMessage(`✅ Event resolved! Scored ${data.scored_users || 0} users.`);
+      setMessage(`Event resolved! Scored ${data.scored_users || 0} users.`);
       fetchEvents();
       setTimeout(() => setMessage(""), 4000);
-    } catch (e) {
-      setMessage("❌ Failed to resolve event");
+    } catch (err) {
+      setMessage(`Failed to resolve event: ${err.message}`);
     } finally {
       setResolving(prev => ({ ...prev, [eventId]: false }));
     }
@@ -61,14 +92,14 @@ export default function Admin() {
 
   const handleCreate = async () => {
     if (!newTitle.trim() || !newDeadline) {
-      setMessage("❌ Please fill in all fields");
+      setMessage("Please fill in all fields");
       return;
     }
     setCreating(true);
     try {
       const res = await fetch(`${API_BASE}/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: adminHeaders(),
         body: JSON.stringify({
           title: newTitle,
           category: newCategory,
@@ -76,13 +107,17 @@ export default function Admin() {
           deadline: newDeadline
         })
       });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to create");
+      }
       const data = await res.json();
-      setMessage(`✅ Event created! ID: ${data.eventId?.slice(0,8)}`);
+      setMessage(`Event created! ID: ${data.eventId?.slice(0,8)}`);
       setNewTitle(""); setNewDescription(""); setNewDeadline("");
       fetchEvents();
       setTimeout(() => setMessage(""), 4000);
-    } catch (e) {
-      setMessage("❌ Failed to create event");
+    } catch (err) {
+      setMessage(`Failed to create event: ${err.message}`);
     } finally {
       setCreating(false);
     }
@@ -98,19 +133,14 @@ export default function Admin() {
             type="password"
             value={password}
             onChange={e=>setPassword(e.target.value)}
-            onKeyDown={e=>{
-              if(e.key==="Enter"){
-                if(password===ADMIN_PASSWORD) setAuthed(true);
-                else setPwError("Wrong password");
-              }
-            }}
+            onKeyDown={e=>{ if(e.key==="Enter") handleAdminLogin(); }}
             placeholder="Admin password"
             style={{ width:"100%", padding:"10px 14px", background:"#1f2937", border:"1px solid #374151", borderRadius:"8px", color:"#f9fafb", fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"12px" }}
           />
           {pwError && <p style={{ color:"#ef4444", fontSize:"13px", marginBottom:"12px" }}>{pwError}</p>}
-          <button onClick={()=>{ if(password===ADMIN_PASSWORD) setAuthed(true); else setPwError("Wrong password"); }}
-            style={{ width:"100%", padding:"11px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", cursor:"pointer", fontWeight:600, fontSize:"14px" }}>
-            Access Admin Panel
+          <button onClick={handleAdminLogin} disabled={pwLoading}
+            style={{ width:"100%", padding:"11px", background:pwLoading?"#1f2937":"#2563eb", color:pwLoading?"#6b7280":"#fff", border:"none", borderRadius:"8px", cursor:pwLoading?"not-allowed":"pointer", fontWeight:600, fontSize:"14px" }}>
+            {pwLoading ? "Authenticating..." : "Access Admin Panel"}
           </button>
           <button onClick={()=>navigate("/")} style={{ width:"100%", padding:"11px", background:"none", color:"#6b7280", border:"none", cursor:"pointer", fontSize:"13px", marginTop:"8px" }}>
             ← Back to Markets
@@ -132,8 +162,8 @@ export default function Admin() {
       </div>
 
       {message && (
-        <div style={{ background:message.startsWith("✅")?"#022c22":"#2d0a0a", borderBottom:`1px solid ${message.startsWith("✅")?"#10b981":"#ef4444"}`, padding:"12px 32px" }}>
-          <p style={{ color:message.startsWith("✅")?"#34d399":"#f87171", fontSize:"14px", margin:0 }}>{message}</p>
+        <div style={{ background:message.startsWith("Event")?"#022c22":"#2d0a0a", borderBottom:`1px solid ${message.startsWith("Event")?"#10b981":"#ef4444"}`, padding:"12px 32px" }}>
+          <p style={{ color:message.startsWith("Event")?"#34d399":"#f87171", fontSize:"14px", margin:0 }}>{message}</p>
         </div>
       )}
 
@@ -183,14 +213,14 @@ export default function Admin() {
                         disabled={resolving[event.id]}
                         style={{ padding:"8px 20px", background:"#022c22", border:"1px solid #10b981", color:"#34d399", borderRadius:"6px", cursor:"pointer", fontSize:"13px", fontWeight:600 }}
                       >
-                        {resolving[event.id] ? "..." : "✓ YES"}
+                        {resolving[event.id] ? "..." : "YES"}
                       </button>
                       <button
                         onClick={()=>handleResolve(event.id, 0)}
                         disabled={resolving[event.id]}
                         style={{ padding:"8px 20px", background:"#2d0a0a", border:"1px solid #ef4444", color:"#f87171", borderRadius:"6px", cursor:"pointer", fontSize:"13px", fontWeight:600 }}
                       >
-                        {resolving[event.id] ? "..." : "✗ NO"}
+                        {resolving[event.id] ? "..." : "NO"}
                       </button>
                     </div>
                   </div>
@@ -208,7 +238,7 @@ export default function Admin() {
                         <p style={{ color:"#9ca3af", fontSize:"14px", margin:0 }}>{event.title}</p>
                       </div>
                       <span style={{ background:event.actual_outcome===1?"#022c22":"#2d0a0a", color:event.actual_outcome===1?"#34d399":"#f87171", padding:"4px 12px", borderRadius:"4px", fontSize:"12px", fontWeight:600 }}>
-                        {event.actual_outcome===1?"✓ YES":"✗ NO"}
+                        {event.actual_outcome===1?"YES":"NO"}
                       </span>
                     </div>
                   ))}

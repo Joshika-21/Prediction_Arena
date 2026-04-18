@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API_BASE = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io"
+const API_BASE = import.meta.env.VITE_API_BASE
 
 function Leaderboard() {
     const [players, setPlayers] = useState([])
@@ -19,7 +19,7 @@ function Leaderboard() {
             const data = await response.json()
             setPlayers(data.leaderboard || data)
             setError(null)
-        } catch (err) {
+        } catch {
             setError("Failed to load leaderboard!")
         } finally {
             setLoading(false)

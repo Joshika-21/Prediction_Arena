@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const API_BASE = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io"
+const API_BASE = import.meta.env.VITE_API_BASE
 
 function PredictionForm({ event, user, onClose }) {
   const [confidence, setConfidence] = useState(50)

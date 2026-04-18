@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io";
+const API_BASE = import.meta.env.VITE_API_BASE;
 const CATEGORY_ICONS = { Trending:"🔥", Elections:"🗳️", Politics:"🏛️", Sports:"⚽", Culture:"🎭", Crypto:"₿", Climate:"🌍", Economics:"📈", Companies:"🏢", Financials:"💹", "Tech & Science":"🔬" };
 
 export default function MyPredictions({ user }) {
@@ -12,20 +12,19 @@ export default function MyPredictions({ user }) {
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
+    const fetchPredictions = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/users/${user.username}/predictions`);
+        const data = await res.json();
+        setPredictions(data.predictions || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchPredictions();
-  }, [user]);
-
-  const fetchPredictions = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/users/${user.username}/predictions`);
-      const data = await res.json();
-      setPredictions(data.predictions || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, navigate]);
 
   const resolved = predictions.filter(p => p.status === "resolved");
   const pending = predictions.filter(p => p.status === "pending");
@@ -36,87 +35,93 @@ export default function MyPredictions({ user }) {
     : null;
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0d1117", fontFamily:"Inter,-apple-system,sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0e17", fontFamily: "Inter,-apple-system,sans-serif" }}>
       {/* Header */}
-      <div style={{ background:"#111827", borderBottom:"1px solid #1f2937", padding:"16px 32px", display:"flex", alignItems:"center", gap:"16px" }}>
-        <button onClick={()=>navigate("/")} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:"14px", display:"flex", alignItems:"center", gap:"6px" }}>
-          ← Back
-        </button>
-        <h1 style={{ color:"#f9fafb", fontSize:"18px", fontWeight:600 }}>My Predictions</h1>
-        <span style={{ color:"#6b7280", fontSize:"13px" }}>@{user?.username}</span>
+      <div className="navbar" style={{ padding: "0 32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, height: 58 }}>
+          <button onClick={() => navigate("/")} className="btn-secondary" style={{ padding: "6px 14px", fontSize: 13 }}>
+            ← Back
+          </button>
+          <h1 style={{ color: "#f9fafb", fontSize: 18, fontWeight: 700 }}>My Predictions</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+            <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 700 }}>{user?.username?.[0]?.toUpperCase()}</div>
+            <span style={{ color: "#6b7280", fontSize: 13, fontWeight: 500 }}>@{user?.username}</span>
+          </div>
+        </div>
       </div>
 
-      <div style={{ maxWidth:"1000px", margin:"0 auto", padding:"24px 32px" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "28px 32px" }}>
         {/* Stats */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"16px", marginBottom:"24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
           {[
-            ["Total Predictions", predictions.length, "#f9fafb"],
-            ["Resolved", resolved.length, "#10b981"],
-            ["Avg Brier Score", avgBrier || "N/A", "#2563eb"]
-          ].map(([label, value, color]) => (
-            <div key={label} style={{ background:"#111827", border:"1px solid #1f2937", borderRadius:"10px", padding:"20px", textAlign:"center" }}>
-              <div style={{ color, fontSize:"28px", fontWeight:700, fontFamily:"monospace" }}>{value}</div>
-              <div style={{ color:"#6b7280", fontSize:"13px", marginTop:"4px" }}>{label}</div>
+            ["Total Predictions", predictions.length, "#6366f1", "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02))"],
+            ["Resolved", resolved.length, "#10b981", "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.02))"],
+            ["Avg Brier Score", avgBrier || "N/A", "#f59e0b", "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.02))"]
+          ].map(([label, value, color, bg]) => (
+            <div key={label} style={{ background: bg, border: "1px solid #1e2736", borderRadius: 14, padding: 22, textAlign: "center" }}>
+              <div style={{ color, fontSize: 30, fontWeight: 700, fontFamily: "monospace" }}>{value}</div>
+              <div style={{ color: "#6b7280", fontSize: 13, marginTop: 6, fontWeight: 500 }}>{label}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", gap:"0", borderBottom:"1px solid #1f2937", marginBottom:"20px" }}>
-          {[["all","All",predictions.length],["pending","Pending",pending.length],["resolved","Resolved",resolved.length]].map(([tab,label,count])=>(
-            <button key={tab} onClick={()=>setActiveTab(tab)} style={{ background:"none", border:"none", borderBottom:activeTab===tab?"2px solid #2563eb":"2px solid transparent", padding:"10px 20px", color:activeTab===tab?"#f9fafb":"#6b7280", fontSize:"14px", fontWeight:500, cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
-              {label} <span style={{ background:"#1f2937", color:"#9ca3af", padding:"1px 7px", borderRadius:"10px", fontSize:"12px" }}>{count}</span>
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1e2736", marginBottom: 22 }}>
+          {[["all", "All", predictions.length], ["pending", "Pending", pending.length], ["resolved", "Resolved", resolved.length]].map(([tab, label, count]) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`category-tab ${activeTab === tab ? "active" : ""}`} style={{ color: activeTab === tab ? "#f9fafb" : "#6b7280", display: "flex", alignItems: "center", gap: 6, padding: "10px 18px" }}>
+              {label} <span style={{ background: activeTab === tab ? "rgba(99,102,241,0.15)" : "#1a2233", color: activeTab === tab ? "#a5b4fc" : "#6b7280", padding: "1px 8px", borderRadius: 10, fontSize: 12, fontWeight: 600 }}>{count}</span>
             </button>
           ))}
         </div>
 
         {/* Predictions list */}
         {loading ? (
-          <div style={{ textAlign:"center", padding:"60px", color:"#6b7280", fontSize:"14px" }}>Loading predictions...</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="skeleton-card" style={{ height: 90 }} />
+            ))}
+          </div>
         ) : displayed.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"60px", color:"#6b7280" }}>
-            <div style={{ fontSize:"40px", marginBottom:"12px" }}>📭</div>
-            <p style={{ fontSize:"14px" }}>No predictions yet. Go make some!</p>
-            <button onClick={()=>navigate("/")} style={{ marginTop:"16px", padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:"8px", cursor:"pointer", fontSize:"14px", fontWeight:500 }}>Browse Markets</button>
+          <div className="animate-fade-in" style={{ textAlign: "center", padding: 60 }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>📭</div>
+            <p style={{ color: "#9ca3af", fontSize: 16, fontWeight: 500, marginBottom: 4 }}>No predictions yet</p>
+            <p style={{ color: "#4b5563", fontSize: 14, marginBottom: 20 }}>Start making predictions to see them here</p>
+            <button onClick={() => navigate("/")} className="btn-primary" style={{ padding: "10px 28px", fontSize: 14 }}>Browse Markets</button>
           </div>
         ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-            {displayed.map((p, i) => (
-              <div key={i} style={{ background:"#111827", border:"1px solid #1f2937", borderRadius:"10px", padding:"20px", display:"flex", alignItems:"center", gap:"16px" }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"6px" }}>
-                    <span style={{ color:"#6b7280", fontSize:"12px" }}>{CATEGORY_ICONS[p.category]} {p.category}</span>
-                    <span style={{ background:p.status==="resolved"?"#064e3b":"#1e3a5f", color:p.status==="resolved"?"#34d399":"#93c5fd", fontSize:"11px", fontWeight:600, padding:"2px 8px", borderRadius:"4px" }}>
-                      {p.status==="resolved"?"Resolved":"Pending"}
-                    </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {displayed.map((p, i) => {
+              const isYes = p.confidence >= 50;
+              const displayConf = isYes ? Math.round(p.confidence) : Math.round(100 - p.confidence);
+              return (
+                <div key={i} className="event-card animate-fade-in" style={{ animationDelay: `${i * 0.04}s`, display: "flex", alignItems: "center", gap: 16, cursor: "default" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <span style={{ color: "#6b7280", fontSize: 12 }}>{CATEGORY_ICONS[p.category]} {p.category}</span>
+                      <span className={`badge ${p.status === "resolved" ? "badge-resolved-yes" : "badge-live"}`} style={p.status !== "resolved" ? { background: "rgba(99,102,241,0.1)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.2)" } : {}}>
+                        {p.status === "resolved" ? "Resolved" : "Pending"}
+                      </span>
+                    </div>
+                    <p style={{ color: "#e5e7eb", fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{p.prediction}</p>
+                    <p style={{ color: "#4b5563", fontSize: 12 }}>
+                      Submitted {new Date(p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
                   </div>
-                  <p style={{ color:"#e5e7eb", fontSize:"14px", fontWeight:500, marginBottom:"4px" }}>{p.prediction}</p>
-                  <p style={{ color:"#6b7280", fontSize:"12px" }}>
-                    Submitted {new Date(p.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
-                  </p>
-                </div>
 
-                <div style={{ textAlign:"center", minWidth:"80px" }}>
-                  {(() => {
-                    const isYes = p.confidence >= 50;
-                    const displayConf = isYes ? Math.round(p.confidence) : Math.round(100 - p.confidence);
-                    return (
-                      <>
-                        <div style={{ color: isYes ? "#10b981" : "#ef4444", fontSize:"20px", fontWeight:700 }}>{displayConf}%</div>
-                        <div style={{ color:"#6b7280", fontSize:"11px" }}>{isYes ? "YES" : "NO"} prediction</div>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                {p.status === "resolved" && p.brierScore !== null && (
-                  <div style={{ textAlign:"center", minWidth:"80px", borderLeft:"1px solid #1f2937", paddingLeft:"16px" }}>
-                    <div style={{ color:"#2563eb", fontSize:"20px", fontWeight:700, fontFamily:"monospace" }}>{p.brierScore?.toFixed(4)}</div>
-                    <div style={{ color:"#6b7280", fontSize:"11px" }}>Brier Score</div>
+                  <div style={{ textAlign: "center", minWidth: 70 }}>
+                    <div style={{ color: isYes ? "#10b981" : "#ef4444", fontSize: 20, fontWeight: 700, fontFamily: "monospace" }}>{displayConf}%</div>
+                    <div style={{ color: "#4b5563", fontSize: 11, fontWeight: 500 }}>{isYes ? "YES" : "NO"}</div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {p.status === "resolved" && p.brierScore !== null && (
+                    <div style={{ textAlign: "center", minWidth: 80, borderLeft: "1px solid #1e2736", paddingLeft: 16 }}>
+                      <div style={{ color: "#6366f1", fontSize: 20, fontWeight: 700, fontFamily: "monospace" }}>{p.brierScore?.toFixed(4)}</div>
+                      <div style={{ color: "#4b5563", fontSize: 11, fontWeight: 500 }}>Brier Score</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://prediction-service.icysmoke-a3c2bae4.westus2.azurecontainerapps.io"
+const API_BASE_URL = import.meta.env.VITE_API_BASE
 
 export const apiService = {
   getEvents: async () => {
